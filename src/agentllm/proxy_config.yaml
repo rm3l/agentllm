@@ -1,0 +1,51 @@
+# LiteLLM Proxy Configuration for Agno Provider
+# This configuration exposes Agno agents as OpenAI-compatible models
+
+model_list:
+  - model_name: agno/echo
+    litellm_params:
+      model: agno/echo
+      custom_llm_provider: agno
+    model_info:
+      description: "Simple echo agent that repeats back messages"
+      mode: chat
+
+  - model_name: agno/assistant
+    litellm_params:
+      model: agno/assistant
+      custom_llm_provider: agno
+    model_info:
+      description: "General-purpose helpful assistant"
+      mode: chat
+
+  - model_name: agno/code-helper
+    litellm_params:
+      model: agno/code-helper
+      custom_llm_provider: agno
+    model_info:
+      description: "Coding assistant for programming tasks"
+      mode: chat
+
+# General configuration
+general_settings:
+  master_key: "sk-agno-test-key-12345"  # Change this in production!
+
+litellm_settings:
+  drop_params: true  # Drop unsupported params instead of erroring
+  set_verbose: false  # Disable verbose logging
+  json_logs: false
+  # Redirect LiteLLM logs to file
+  success_callback: []
+  failure_callback: []
+  # Register custom Agno provider handler
+  custom_provider_map:
+    - provider: "agno"
+      custom_handler: custom_handler.agno_handler
+
+# Server settings
+server:
+  host: 0.0.0.0
+  port: 8890
+
+# Environment variables needed
+# OPENAI_API_KEY or other LLM provider keys for the underlying Agno agents
