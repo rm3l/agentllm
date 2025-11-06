@@ -45,3 +45,6 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Agent logs
+agno_handler.log
