@@ -11,6 +11,7 @@ from loguru import logger
 
 from agentllm.agents.toolkit_configs import GoogleDriveConfig
 from agentllm.agents.toolkit_configs.jira_config import JiraConfig
+from agentllm.db import TokenStorage
 
 # Map GEMINI_API_KEY to GOOGLE_API_KEY if not set
 if "GOOGLE_API_KEY" not in os.environ and "GEMINI_API_KEY" in os.environ:
@@ -20,6 +21,10 @@ if "GOOGLE_API_KEY" not in os.environ and "GEMINI_API_KEY" in os.environ:
 DB_PATH = Path("tmp/agno_sessions.db")
 DB_PATH.parent.mkdir(exist_ok=True)
 shared_db = SqliteDb(db_file=str(DB_PATH))
+
+# Create token storage using the shared database
+# This stores Jira and Google Drive credentials in the same database
+token_storage = TokenStorage(agno_db=shared_db)
 
 
 class ReleaseManager:
@@ -60,9 +65,11 @@ class ReleaseManager:
             max_tokens: Maximum tokens in response
             **model_kwargs: Additional model parameters
         """
-        # Initialize toolkit configurations
-        self.toolkit_configs = [GoogleDriveConfig(), JiraConfig()]
-        # self.toolkit_configs = [GoogleDriveConfig()]
+        # Initialize toolkit configurations with shared token storage
+        self.toolkit_configs = [
+            GoogleDriveConfig(token_storage=token_storage),
+            JiraConfig(token_storage=token_storage),
+        ]
 
         # Store model parameters for later agent creation
         self._temperature = temperature

@@ -6,7 +6,10 @@ its own configuration flow and toolkit provisioning.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from agentllm.db import TokenStorage
 
 
 class BaseToolkitConfig(ABC):
@@ -20,18 +23,25 @@ class BaseToolkitConfig(ABC):
         - Each config class is instantiated once per ReleaseManager
         - Config classes manage per-user configuration data internally
         - ReleaseManager calls generic methods without knowing service details
+        - TokenStorage is shared across all configs for database-backed credential storage
     """
 
-    def __init__(self):
+    def __init__(self, token_storage: "TokenStorage | None" = None):
         """Initialize the configuration manager.
+
+        Args:
+            token_storage: Shared TokenStorage instance for database-backed credentials
 
         Subclasses should initialize:
         - Per-user configuration storage
         - Per-user toolkit instances
         - Any service-specific settings
         """
-        # Store per-user configurations
+        # Store per-user configurations (legacy, prefer token_storage)
         self._user_configs: dict[str, dict[str, str]] = {}
+
+        # Shared token storage for database-backed credentials
+        self.token_storage = token_storage
 
     def is_required(self) -> bool:
         """Check if this toolkit configuration is required.
