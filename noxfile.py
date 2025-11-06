@@ -61,7 +61,6 @@ def hello(session):
     """Make a hello world request to the proxy (proxy must be running)."""
     import json
     import subprocess
-    import time
 
     print("\n🚀 Testing AgentLLM Proxy...\n")
 
@@ -103,7 +102,7 @@ def hello(session):
         data = json.loads(result.stdout)
         models = [m.get("id") for m in data.get("data", [])]
         print(f"   Available models: {models}\n")
-    except:
+    except Exception:
         print(f"   Response: {result.stdout}\n")
 
     # Test 3: Hello world chat completion
@@ -133,23 +132,22 @@ def hello(session):
 
     print("   Request:")
     print(
-        '   {"model": "agno/release-manager", "messages": [{"role": "user", "content": "Hello from nox!"}]}'
+        '   {"model": "agno/release-manager", '
+        '"messages": [{"role": "user", "content": "Hello from nox!"}]}'
     )
     print("\n   Response:")
     try:
         data = json.loads(result.stdout)
         if "error" in data:
             print(f"   ❌ Error: {data['error']}")
-            print(
-                "\n   💡 This is expected if agents don't have LLM API keys configured."
-            )
+            print("\n   💡 This is expected if agents don't have LLM API keys configured.")
             print("      To fix: Add API keys to .env and configure agents with models")
         elif "choices" in data:
             content = data["choices"][0]["message"]["content"]
             print(f"   ✅ Success! Agent responded: {content}")
         else:
             print(f"   {json.dumps(data, indent=2)}")
-    except:
+    except Exception:
         print(f"   {result.stdout}")
 
     print("\n✨ Test complete!\n")

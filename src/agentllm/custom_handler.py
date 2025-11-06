@@ -1,7 +1,8 @@
 """Custom LiteLLM handler for Agno provider using dynamic registration."""
 
 import logging
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 import litellm
 from litellm import CustomLLM
@@ -16,9 +17,7 @@ logger.setLevel(logging.INFO)
 # File handler for detailed logs
 file_handler = logging.FileHandler("agno_handler.log")
 file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(
-    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-)
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
 
 # Console handler for important logs only
 console_handler = logging.StreamHandler()
@@ -40,12 +39,10 @@ class AgnoCustomLLM(CustomLLM):
         """Initialize the custom LLM handler with agent cache."""
         super().__init__()
         # Cache agents by (agent_name, temperature, max_tokens, user_id)
-        self._agent_cache: Dict[tuple, Any] = {}
+        self._agent_cache: dict[tuple, Any] = {}
         logger.info("Initialized AgnoCustomLLM with agent caching")
 
-    def _extract_session_info(
-        self, kwargs: Dict[str, Any]
-    ) -> tuple[Optional[str], Optional[str]]:
+    def _extract_session_info(self, kwargs: dict[str, Any]) -> tuple[str | None, str | None]:
         """Extract session_id and user_id from request kwargs.
 
         Checks multiple sources in priority order:
@@ -72,17 +69,13 @@ class AgnoCustomLLM(CustomLLM):
         if body_metadata:
             session_id = body_metadata.get("session_id") or body_metadata.get("chat_id")
             user_id = body_metadata.get("user_id")
-            logger.info(
-                f"Found in body metadata: session_id={session_id}, user_id={user_id}"
-            )
+            logger.info(f"Found in body metadata: session_id={session_id}, user_id={user_id}")
 
         # 2. Check OpenWebUI headers (ENABLE_FORWARD_USER_INFO_HEADERS)
         headers = litellm_params.get("metadata", {}).get("headers", {})
         if not session_id and headers:
             # Check for chat_id header (might be X-OpenWebUI-Chat-Id)
-            session_id = headers.get("x-openwebui-chat-id") or headers.get(
-                "X-OpenWebUI-Chat-Id"
-            )
+            session_id = headers.get("x-openwebui-chat-id") or headers.get("X-OpenWebUI-Chat-Id")
             logger.info(f"Found in headers: session_id={session_id}")
 
         if not user_id and headers:
@@ -111,18 +104,12 @@ class AgnoCustomLLM(CustomLLM):
                 logger.info(f"Found in user field: user_id={user_id}")
 
         # Log what we're using
-        logger.info(
-            f"Final extracted session info: user_id={user_id}, session_id={session_id}"
-        )
+        logger.info(f"Final extracted session info: user_id={user_id}, session_id={session_id}")
 
         # Log full structure for debugging (only if nothing found)
         if not session_id and not user_id:
-            logger.warning(
-                "No session/user info found! Logging full request structure:"
-            )
-            logger.warning(
-                f"Headers available: {list(headers.keys()) if headers else 'None'}"
-            )
+            logger.warning("No session/user info found! Logging full request structure:")
+            logger.warning(f"Headers available: {list(headers.keys()) if headers else 'None'}")
             logger.warning(
                 f"Body metadata keys: {list(body_metadata.keys()) if body_metadata else 'None'}"
             )
@@ -132,7 +119,7 @@ class AgnoCustomLLM(CustomLLM):
 
         return session_id, user_id
 
-    def _get_agent(self, model: str, user_id: Optional[str] = None, **kwargs):
+    def _get_agent(self, model: str, user_id: str | None = None, **kwargs):
         """Get agent instance from model name with parameters.
 
         Uses caching to reuse agent instances for the same configuration and user.
@@ -170,9 +157,7 @@ class AgnoCustomLLM(CustomLLM):
         if agent_name == "release-manager":
             agent = ReleaseManager(temperature=temperature, max_tokens=max_tokens)
         else:
-            raise Exception(
-                f"Agent '{agent_name}' not found. Only 'release-manager' is available."
-            )
+            raise Exception(f"Agent '{agent_name}' not found. Only 'release-manager' is available.")
 
         self._agent_cache[cache_key] = agent
         logger.info(f"Cached agent. Total cached agents: {len(self._agent_cache)}")
@@ -203,8 +188,8 @@ class AgnoCustomLLM(CustomLLM):
         return model_response
 
     def _extract_request_params(
-        self, messages: List[Dict[str, Any]], kwargs: Dict[str, Any]
-    ) -> tuple[str, Optional[str], Optional[str]]:
+        self, messages: list[dict[str, Any]], kwargs: dict[str, Any]
+    ) -> tuple[str, str | None, str | None]:
         """Extract common request parameters.
 
         Args:
@@ -221,8 +206,8 @@ class AgnoCustomLLM(CustomLLM):
     def completion(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        api_base: Optional[str] = None,
+        messages: list[dict[str, Any]],
+        api_base: str | None = None,
         custom_llm_provider: str = "agno",
         **kwargs,
     ) -> ModelResponse:
@@ -255,17 +240,13 @@ class AgnoCustomLLM(CustomLLM):
             )
 
         # Extract request parameters first (need user_id for agent cache)
-        user_message, session_id, user_id = self._extract_request_params(
-            messages, kwargs
-        )
+        user_message, session_id, user_id = self._extract_request_params(messages, kwargs)
 
         # Get agent instance (with caching based on user_id)
         agent = self._get_agent(model, user_id=user_id, **kwargs)
 
         # Run the agent with session management
-        response = agent.run(
-            user_message, stream=False, session_id=session_id, user_id=user_id
-        )
+        response = agent.run(user_message, stream=False, session_id=session_id, user_id=user_id)
 
         # Extract content and build response
         content = response.content if hasattr(response, "content") else str(response)
@@ -274,11 +255,11 @@ class AgnoCustomLLM(CustomLLM):
     def streaming(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        api_base: Optional[str] = None,
+        messages: list[dict[str, Any]],
+        api_base: str | None = None,
         custom_llm_provider: str = "agno",
         **kwargs,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[dict[str, Any]]:
         """Handle streaming requests for Agno agents.
 
         Note: Streaming is not fully supported in sync mode.
@@ -320,20 +301,16 @@ class AgnoCustomLLM(CustomLLM):
                 "completion_tokens": (
                     result.usage.get("completion_tokens", 0) if result.usage else 0
                 ),
-                "prompt_tokens": (
-                    result.usage.get("prompt_tokens", 0) if result.usage else 0
-                ),
-                "total_tokens": (
-                    result.usage.get("total_tokens", 0) if result.usage else 0
-                ),
+                "prompt_tokens": (result.usage.get("prompt_tokens", 0) if result.usage else 0),
+                "total_tokens": (result.usage.get("total_tokens", 0) if result.usage else 0),
             },
         }
 
     async def acompletion(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        api_base: Optional[str] = None,
+        messages: list[dict[str, Any]],
+        api_base: str | None = None,
         custom_llm_provider: str = "agno",
         **kwargs,
     ) -> ModelResponse:
@@ -354,9 +331,7 @@ class AgnoCustomLLM(CustomLLM):
         logger.info(f"messages: {messages}")
 
         # Extract request parameters first (need user_id for agent cache)
-        user_message, session_id, user_id = self._extract_request_params(
-            messages, kwargs
-        )
+        user_message, session_id, user_id = self._extract_request_params(messages, kwargs)
 
         # Get agent instance (with caching based on user_id)
         agent = self._get_agent(model, user_id=user_id, **kwargs)
@@ -373,11 +348,11 @@ class AgnoCustomLLM(CustomLLM):
     async def astreaming(
         self,
         model: str,
-        messages: List[Dict[str, Any]],
-        api_base: Optional[str] = None,
+        messages: list[dict[str, Any]],
+        api_base: str | None = None,
         custom_llm_provider: str = "agno",
         **kwargs,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Async streaming using Agno's native streaming support.
 
         Args:
@@ -395,9 +370,7 @@ class AgnoCustomLLM(CustomLLM):
         logger.info(f"messages: {messages}")
 
         # Extract request parameters first (need user_id for agent cache)
-        user_message, session_id, user_id = self._extract_request_params(
-            messages, kwargs
-        )
+        user_message, session_id, user_id = self._extract_request_params(messages, kwargs)
 
         # Get agent instance (with caching based on user_id)
         agent = self._get_agent(model, user_id=user_id, **kwargs)
@@ -443,7 +416,7 @@ class AgnoCustomLLM(CustomLLM):
             },
         }
 
-    def _extract_user_message(self, messages: List[Dict[str, Any]]) -> str:
+    def _extract_user_message(self, messages: list[dict[str, Any]]) -> str:
         """Extract the last user message from messages list.
 
         Args:

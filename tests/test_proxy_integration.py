@@ -4,7 +4,6 @@ These tests spin up a real proxy server and test the full stack,
 including streaming functionality through the OpenAI-compatible API.
 """
 
-import asyncio
 import os
 import subprocess
 import time
@@ -55,7 +54,7 @@ class ProxyManager:
 
         # Wait for proxy to be ready
         max_attempts = 30
-        for attempt in range(max_attempts):
+        for _attempt in range(max_attempts):
             try:
                 response = httpx.get(f"{self.base_url}/health")
                 # Accept 200 OK or 401 Unauthorized (means server is up)
@@ -161,9 +160,9 @@ class TestProxyStreaming:
             api_key="sk-agno-test-key-12345",
         )
 
-        # Request an invalid model
-        with pytest.raises(Exception):
-            stream = await client.chat.completions.create(
+        # Request an invalid model - should raise an error
+        with pytest.raises(Exception):  # noqa: B017
+            await client.chat.completions.create(
                 model="agno/nonexistent-agent",
                 messages=[{"role": "user", "content": "Test"}],
                 stream=True,
