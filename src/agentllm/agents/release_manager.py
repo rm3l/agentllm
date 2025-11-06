@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Optional
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.google import Gemini
+from loguru import logger
+
+from agentllm.tools.jira_toolkit import JiraTools
 
 # Map GEMINI_API_KEY to GOOGLE_API_KEY if not set
 if "GOOGLE_API_KEY" not in os.environ and "GEMINI_API_KEY" in os.environ:
@@ -54,6 +57,10 @@ class ReleaseManager:
         # Agent will be created after configuration is complete
         self._agent: Optional[Agent] = None
 
+        # Jira configuration
+        self._jira_server = "https://issues.redhat.com"
+        self._jira_toolkit: Optional[JiraTools] = None
+
         # Configuration management (POC: in-memory storage)
         self._required_configs = {
             "jira_token": (
@@ -73,8 +80,20 @@ class ReleaseManager:
 
         Returns:
             The underlying Agno agent instance
+
+        Raises:
+            RuntimeError: If Jira toolkit is not configured
         """
         if self._agent is None:
+            # Ensure Jira toolkit is configured before creating agent
+            if self._jira_toolkit is None:
+                error_msg = (
+                    "Cannot create agent: Jira toolkit is not configured. "
+                    "Please ensure the Jira token has been validated and stored."
+                )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
             # Create the agent now that configuration is complete
             model_params = {"id": "gemini-2.5-flash"}
             if self._temperature is not None:
@@ -82,6 +101,10 @@ class ReleaseManager:
             if self._max_tokens is not None:
                 model_params["max_tokens"] = self._max_tokens
             model_params.update(self._model_kwargs)
+
+            # Prepare tools list - always include Jira toolkit
+            tools = [self._jira_toolkit]
+            logger.info("Adding Jira toolkit to release manager agent")
 
             self._agent = Agent(
                 name="release-manager",
@@ -98,8 +121,11 @@ class ReleaseManager:
                     "best practices.",
                     "Be thorough in analyzing changes and their impact on users.",
                     "Use markdown formatting for structured output.",
+                    "You have access to Jira tools to fetch issue details, "
+                    "search for issues, and interact with the Jira system.",
                 ],
                 markdown=True,
+                tools=tools,
                 # Session management
                 db=shared_db,
                 add_history_to_context=True,
@@ -154,6 +180,7 @@ class ReleaseManager:
         - "jira token: abc123"
         - "jira_token = abc123"
         - "set jira token to abc123"
+        - Standalone long alphanumeric tokens (30+ characters)
 
         Args:
             message: User message text
@@ -187,23 +214,86 @@ class ReleaseManager:
                     extracted[config_name] = match.group(1)
                     break
 
+            # If no match yet and looking for jira_token, also try to detect
+            # standalone long alphanumeric tokens (30+ characters with mixed case)
+            if config_name not in extracted and config_name == "jira_token":
+                # Match standalone tokens that are likely Jira tokens:
+                # - 30+ characters
+                # - Contains letters and numbers
+                # - May contain special chars like +, /, =
+                # - Not a URL or common word
+                # Use (?:^|\s) and (?:\s|$) instead of \b to handle special chars
+                token_pattern = r"(?:^|\s)([A-Za-z0-9+/=]{30,})(?:\s|$)"
+                match = re.search(token_pattern, message)
+                if match:
+                    potential_token = match.group(1)
+                    # Basic validation: should have both letters and numbers
+                    has_letters = bool(re.search(r"[A-Za-z]", potential_token))
+                    has_numbers = bool(re.search(r"[0-9]", potential_token))
+                    if has_letters and has_numbers:
+                        extracted[config_name] = potential_token
+
         return extracted if extracted else None
 
-    def store_config(self, user_id: str, config_name: str, value: str) -> None:
+    def store_config(self, user_id: str, config_name: str, value: str) -> Optional[str]:
         """Store a configuration value for a user.
 
         Note: Currently stores in-memory. To migrate to database storage,
         modify this method to write to DB instead.
 
+        For jira_token, validates the token by creating a JiraTools instance
+        and testing the connection before storing.
+
         Args:
             user_id: User identifier
             config_name: Name of the configuration (e.g., "jira_token")
             value: Configuration value to store
+
+        Returns:
+            Validation message if config was validated (e.g., for jira_token),
+            None otherwise
+
+        Raises:
+            ValueError: If validation fails (e.g., invalid Jira token)
         """
         if user_id not in self._user_configs:
             self._user_configs[user_id] = {}
 
+        validation_message = None
+
+        # Special handling for jira_token: validate before storing
+        if config_name == "jira_token":
+            logger.info(f"Validating Jira token for user {user_id}")
+            try:
+                # Create toolkit with the token
+                toolkit = JiraTools(
+                    token=value,
+                    server_url=self._jira_server,
+                    get_issue=True,
+                    search_issues=True,
+                    add_comment=False,
+                    create_issue=False,
+                )
+
+                # Validate the connection
+                success, message = toolkit.validate_connection()
+
+                if not success:
+                    logger.error(f"Jira token validation failed for user {user_id}: {message}")
+                    raise ValueError(f"Invalid Jira token: {message}")
+
+                logger.info(f"Jira token validated successfully for user {user_id}")
+                # Store the toolkit for later use
+                self._jira_toolkit = toolkit
+                # Return the validation message
+                validation_message = message
+
+            except Exception as e:
+                logger.error(f"Failed to validate Jira token for user {user_id}: {e}")
+                raise ValueError(f"Failed to validate Jira token: {str(e)}")
+
         self._user_configs[user_id][config_name] = value
+        return validation_message
 
     def _build_prompt_message(self, user_id: Optional[str]) -> str:
         """Build a prompt message for missing configurations.
@@ -228,18 +318,25 @@ class ReleaseManager:
 
         return "\n".join(prompt_parts)
 
-    def _build_confirmation_message(self, stored_configs: Dict[str, str]) -> str:
+    def _build_confirmation_message(
+        self, stored_configs: Dict[str, str], validation_messages: Optional[Dict[str, str]] = None
+    ) -> str:
         """Build a confirmation message after storing configs.
 
         Args:
             stored_configs: Dict of config names to values that were stored
+            validation_messages: Optional dict of config names to validation messages
 
         Returns:
             Confirmation message
         """
         config_names = ", ".join(stored_configs.keys())
 
-        message = f"✅ Thank you! I've securely stored your {config_names}.\n\n"
+        # Use validation message if available, otherwise use generic message
+        if validation_messages and "jira_token" in validation_messages:
+            message = f"✅ {validation_messages['jira_token']}\n\n"
+        else:
+            message = f"✅ Thank you! I've securely stored your {config_names}.\n\n"
 
         # Check if user is now fully configured
         if len(stored_configs) == len(self._required_configs):
@@ -296,14 +393,24 @@ class ReleaseManager:
         extracted = self.extract_token_from_message(message)
 
         if extracted:
-            # Store all extracted configs
-            for config_name, value in extracted.items():
-                if user_id:
-                    self.store_config(user_id, config_name, value)
+            # Store all extracted configs (with validation)
+            try:
+                validation_messages = {}
+                for config_name, value in extracted.items():
+                    if user_id:
+                        validation_msg = self.store_config(user_id, config_name, value)
+                        if validation_msg:
+                            validation_messages[config_name] = validation_msg
 
-            # Return confirmation message
-            confirmation = self._build_confirmation_message(extracted)
-            return self._create_simple_response(confirmation)
+                # Return confirmation message with validation details
+                confirmation = self._build_confirmation_message(extracted, validation_messages)
+                return self._create_simple_response(confirmation)
+
+            except ValueError as e:
+                # Validation failed (e.g., invalid Jira token)
+                error_msg = f"❌ Configuration validation failed: {str(e)}\n\nPlease check your token and try again."
+                logger.warning(f"Configuration validation failed for user {user_id}: {e}")
+                return self._create_simple_response(error_msg)
 
         # No tokens extracted, prompt user for missing configs
         prompt = self._build_prompt_message(user_id)
@@ -333,8 +440,17 @@ class ReleaseManager:
             return config_response
 
         # User is configured, get/create agent and run it
-        agent = self._get_or_create_agent()
-        return agent.run(message, user_id=user_id, **kwargs)
+        try:
+            agent = self._get_or_create_agent()
+            return agent.run(message, user_id=user_id, **kwargs)
+        except RuntimeError as e:
+            # Toolkit not configured - return error message to user
+            error_msg = (
+                f"❌ Configuration error: {str(e)}\n\n"
+                "Please reconfigure your Jira token."
+            )
+            logger.error(f"Failed to create agent for user {user_id}: {e}")
+            return self._create_simple_response(error_msg)
 
     async def _arun_non_streaming(self, message: str, user_id: Optional[str] = None, **kwargs):
         """Internal async method for non-streaming mode."""
@@ -344,8 +460,17 @@ class ReleaseManager:
         if config_response is not None:
             return config_response
 
-        agent = self._get_or_create_agent()
-        return await agent.arun(message, user_id=user_id, **kwargs)
+        try:
+            agent = self._get_or_create_agent()
+            return await agent.arun(message, user_id=user_id, **kwargs)
+        except RuntimeError as e:
+            # Toolkit not configured - return error message to user
+            error_msg = (
+                f"❌ Configuration error: {str(e)}\n\n"
+                "Please reconfigure your Jira token."
+            )
+            logger.error(f"Failed to create agent for user {user_id}: {e}")
+            return self._create_simple_response(error_msg)
 
     async def _arun_streaming(self, message: str, user_id: Optional[str] = None, **kwargs):
         """Internal async generator for streaming mode."""
@@ -361,12 +486,21 @@ class ReleaseManager:
             yield content
             return
 
-        agent = self._get_or_create_agent()
+        try:
+            agent = self._get_or_create_agent()
 
-        # When streaming, agent.arun() returns an async generator directly
-        # Don't await it, just iterate over it
-        async for chunk in agent.arun(message, user_id=user_id, **kwargs):
-            yield chunk
+            # When streaming, agent.arun() returns an async generator directly
+            # Don't await it, just iterate over it
+            async for chunk in agent.arun(message, user_id=user_id, **kwargs):
+                yield chunk
+        except RuntimeError as e:
+            # Toolkit not configured - yield error message to user
+            error_msg = (
+                f"❌ Configuration error: {str(e)}\n\n"
+                "Please reconfigure your Jira token."
+            )
+            logger.error(f"Failed to create agent for user {user_id}: {e}")
+            yield error_msg
 
     def arun(self, message: str, user_id: Optional[str] = None, **kwargs):
         """Async version of run() with same configuration management logic.

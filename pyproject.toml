@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "agno>=2.2.8",
+    "jira>=3.0.0",
     "litellm[proxy]>=1.79.1",
+    "loguru>=0.7.0",
     "nox>=2025.10.16",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
