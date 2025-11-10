@@ -72,11 +72,27 @@ help:
 # ============================================================================
 
 # Main commit preparation - comprehensive checks before committing
-prepare-commit: format lint test
+prepare-commit: format test
 	@echo "🚀 Preparing commit..."
 	@echo "🏷️  Type checking..."
 	pre-commit run --all-files
 	@echo "✅ All pre-commit checks passed"
+
+validate-tooling:
+	@echo "🔍 Validating tooling configuration..."
+	@echo "📋 Checking ruff..."
+	@uv run ruff check src tests --diff || echo "⚠️  Ruff would make changes"
+	@echo "✅ Tooling validation complete"
+
+lint:
+	@echo "🔍 Running linter ..."
+	uv run ruff check src/ tests/
+	@echo "✅ Linting passed"
+
+format:
+	@echo "🎨 Formatting code ..."
+	uv run ruff format src/ tests/
+	@echo "✅ Code formatted"
 
 test:
 	@echo "🧪 Running tests ..."

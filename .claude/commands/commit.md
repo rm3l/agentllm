@@ -40,9 +40,6 @@ The project now includes these helpful targets for development:
 - **`make validate-tooling`**: Check if tools would make changes before committing
 - **`make lint`**: Run ruff linting with fixes on src/ and tests/
 - **`make format`**: Run ruff code formatting on src/ and tests/
-- **`make typecheck`**: Run mypy type checking on src/ and tests/
-- **`make test`**: Run pytest test suite
-- **`make quality`**: Run all quality checks (lint + typecheck + test)
 
 ## Best Practices for Commits
 
@@ -179,13 +176,11 @@ The project now uses a streamlined approach to avoid back-and-forth fixing:
 ### Before Development
 
 - **`make validate-tooling`**: Check if any tools would make changes
-- **`make quality`**: Run all quality checks to catch issues early
 
 ### During Development
 
 - **`make lint`**: Quick linting with auto-fixes
 - **`make format`**: Code formatting
-- **`make typecheck`**: Type checking
 
 ### Before Committing
 
