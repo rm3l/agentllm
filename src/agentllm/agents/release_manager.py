@@ -79,6 +79,23 @@ class ReleaseManager:
         # Store agents per user_id (agents are not shared across users)
         self._agents: dict[str, Agent] = {}
 
+        # Cache extended system prompts per user_id
+        # Fetched from Google Docs and cached until agent invalidation
+        self._system_prompts: dict[str, str] = {}
+
+    def _invalidate_system_prompt(self, user_id: str) -> None:
+        """Invalidate cached system prompt for a user.
+
+        This clears the cached extended system prompt from Google Docs,
+        forcing a fresh fetch on next agent creation.
+
+        Args:
+            user_id: User identifier
+        """
+        if user_id in self._system_prompts:
+            logger.info(f"Invalidating cached system prompt for user {user_id}")
+            del self._system_prompts[user_id]
+
     def _invalidate_agent(self, user_id: str) -> None:
         """Invalidate cached agent for a user.
 
@@ -91,6 +108,8 @@ class ReleaseManager:
         if user_id in self._agents:
             logger.info(f"Invalidating cached agent for user {user_id}")
             del self._agents[user_id]
+        # Also invalidate the system prompt cache
+        self._invalidate_system_prompt(user_id)
 
     def _check_and_invalidate_agent(self, config_name: str, user_id: str) -> None:
         """Check if config requires agent recreation and invalidate if needed.
@@ -105,6 +124,79 @@ class ReleaseManager:
                 self._invalidate_agent(user_id)
                 logger.info(f"Config '{config_name}' requires agent recreation for user {user_id}")
                 break
+
+    def _fetch_extended_system_prompt(self, user_id: str) -> str:
+        """Fetch extended system prompt from Google Docs.
+
+        This method retrieves additional system prompt instructions from a Google Doc
+        specified by the RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL environment variable.
+        The content is cached per user until agent invalidation.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Extended system prompt content as a string (markdown format)
+
+        Raises:
+            ValueError: If Google Drive is not configured for the user
+            Exception: If document fetch fails (network error, permissions, invalid URL, etc.)
+        """
+        # Check cache first
+        if user_id in self._system_prompts:
+            logger.debug(f"Using cached system prompt for user {user_id}")
+            return self._system_prompts[user_id]
+
+        # Get the document URL from environment
+        doc_url = os.getenv("RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL")
+        if not doc_url:
+            raise ValueError(
+                "RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL environment variable not set"
+            )
+
+        logger.info(f"Fetching extended system prompt from Google Doc for user {user_id}")
+
+        # Get Google Drive toolkit for this user
+        gdrive_config = None
+        for config in self.toolkit_configs:
+            if isinstance(config, GoogleDriveConfig):
+                gdrive_config = config
+                break
+
+        if not gdrive_config:
+            raise ValueError("Google Drive config not found in toolkit configs")
+
+        if not gdrive_config.is_configured(user_id):
+            raise ValueError(
+                f"Google Drive is not configured for user {user_id}. "
+                "User must authorize Google Drive access before extended system prompt can be fetched."
+            )
+
+        # Get the toolkit instance
+        toolkit = gdrive_config.get_toolkit(user_id)
+        if not toolkit:
+            raise ValueError(f"Failed to get Google Drive toolkit for user {user_id}")
+
+        # Fetch the document content
+        try:
+            content = toolkit.get_document_content(doc_url)
+            if not content:
+                raise ValueError(f"Document at {doc_url} returned empty content")
+
+            # Cache the content
+            self._system_prompts[user_id] = content
+            logger.info(
+                f"Successfully fetched extended system prompt for user {user_id} "
+                f"({len(content)} characters)"
+            )
+
+            return content
+
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch extended system prompt from {doc_url} for user {user_id}: {e}"
+            )
+            raise
 
     def _get_or_create_agent(self, user_id: str) -> Agent:
         """Get or create the underlying Agno agent for a specific user.
@@ -146,6 +238,36 @@ class ReleaseManager:
             "Use markdown formatting for structured output.",
             "Be concise and clear in your responses.",
         ]
+
+        # Fetch and append extended system prompt from Google Docs if configured
+        doc_url = os.getenv("RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL")
+        if doc_url:
+            # Check if Google Drive is configured for this user
+            gdrive_config = None
+            for config in self.toolkit_configs:
+                if isinstance(config, GoogleDriveConfig):
+                    gdrive_config = config
+                    break
+
+            if gdrive_config and gdrive_config.is_configured(user_id):
+                try:
+                    extended_prompt = self._fetch_extended_system_prompt(user_id)
+                    instructions.append(extended_prompt)
+                    logger.info(
+                        f"Appended extended system prompt to agent instructions for user {user_id}"
+                    )
+                except Exception as e:
+                    # Let the exception bubble up - fail agent creation if prompt fetch fails
+                    logger.error(
+                        f"Failed to fetch extended system prompt for user {user_id}, "
+                        f"aborting agent creation: {e}"
+                    )
+                    raise
+            else:
+                logger.info(
+                    f"RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL is set but Google Drive "
+                    f"is not configured for user {user_id}, skipping extended prompt"
+                )
 
         # Add toolkit-specific instructions
         for config in self.toolkit_configs:
