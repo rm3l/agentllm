@@ -1,6 +1,6 @@
 [project]
 dependencies = [
-  "agno>=2.2.8",
+  "agno>=2.2.10",
   "jira>=3.0.0",
   "litellm[proxy]>=1.79.1",
   "loguru>=0.7.0",
