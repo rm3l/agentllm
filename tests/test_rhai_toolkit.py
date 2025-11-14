@@ -11,6 +11,8 @@ This test suite covers:
 """
 
 import os
+from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -25,6 +27,10 @@ from agentllm.tools import (
 
 # Load .env file for tests
 load_dotenv()
+
+# Path to test fixtures
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+RELEASES_CSV_PATH = FIXTURES_DIR / "releases.csv"
 
 
 # Test fixtures
@@ -42,11 +48,9 @@ def mock_credentials() -> Credentials:
 
 @pytest.fixture
 def sample_release_data() -> str:
-    """Provide sample release data in tab-separated format."""
-    return """Release\tDetails\tPlanned Release Date
-1.5.0\tGA release with new features\t2025-02-15
-1.5.1\tBugfix release\t2025-03-01
-1.6.0\tMajor feature release\t2025-04-30"""
+    """Provide sample release data from CSV fixture."""
+    with open(RELEASES_CSV_PATH) as f:
+        return f.read()
 
 
 @pytest.fixture
@@ -108,7 +112,7 @@ class TestGetReleasesSuccess:
         releases = toolkit.get_releases()
 
         assert isinstance(releases, list)
-        assert len(releases) == 3
+        assert len(releases) == 8  # Updated to match fixture count
         assert all(isinstance(r, RHAIRelease) for r in releases)
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
@@ -128,20 +132,20 @@ class TestGetReleasesSuccess:
         toolkit = RHAITools(credentials=mock_credentials)
         releases = toolkit.get_releases()
 
-        # Check first release
-        assert releases[0].release == "1.5.0"
-        assert releases[0].details == "GA release with new features"
-        assert releases[0].planned_release_date == "2025-02-15"
+        # Check first release (from fixtures/releases.csv)
+        assert releases[0].release == "RHAIIS-3.2.4"
+        assert releases[0].details == "RHAIIS 3.2.4 Release (AIPCC)"
+        assert releases[0].release_date == date(2025, 11, 13)
 
         # Check second release
-        assert releases[1].release == "1.5.1"
-        assert releases[1].details == "Bugfix release"
-        assert releases[1].planned_release_date == "2025-03-01"
+        assert releases[1].release == "rhelai-3.0"
+        assert releases[1].details == "rhelai-3.0 GA (Nvidia support only)"
+        assert releases[1].release_date == date(2025, 11, 13)
 
         # Check third release
-        assert releases[2].release == "1.6.0"
-        assert releases[2].details == "Major feature release"
-        assert releases[2].planned_release_date == "2025-04-30"
+        assert releases[2].release == "rhoai-3.0"
+        assert releases[2].details == "3.0 RHOAI GA"
+        assert releases[2].release_date == date(2025, 11, 13)
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_skips_header_line(
@@ -160,9 +164,11 @@ class TestGetReleasesSuccess:
         toolkit = RHAITools(credentials=mock_credentials)
         releases = toolkit.get_releases()
 
-        # Should not include "Release" as a release name (header)
+        # Should not include "Release" as a release name (header from CSV)
         release_names = [r.release for r in releases]
         assert "Release" not in release_names
+        # All release names should be actual release identifiers
+        assert all(r.startswith(("RHAIIS-", "rhelai-", "rhoai-")) for r in release_names)
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_calls_exporter_with_correct_url(
@@ -241,7 +247,7 @@ class TestGetReleasesEdgeCases:
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_empty_document(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases handles an empty document (only header)."""
-        # Setup mock with only header
+        # Setup mock with only header (matching the actual CSV header)
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = "Release\tDetails\tPlanned Release Date"
         mock_exporter_class.return_value = mock_exporter
@@ -257,9 +263,9 @@ class TestGetReleasesEdgeCases:
         """Test that get_releases skips lines with insufficient columns."""
         # Setup mock with some malformed lines
         malformed_data = """Release\tDetails\tPlanned Release Date
-1.5.0\tGA release with new features\t2025-02-15
-1.5.1\tIncomplete line
-1.6.0\tMajor feature release\t2025-04-30"""
+rhoai-3.0\t3.0 RHOAI GA\tThu Nov-13-2025
+rhoai-3.1\tIncomplete line
+rhoai-3.2\t3.2 RHOAI not-a-real-date\tThu Jan-01-2026"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = malformed_data
@@ -270,15 +276,15 @@ class TestGetReleasesEdgeCases:
 
         # Should only parse valid lines (2 out of 3)
         assert len(releases) == 2
-        assert releases[0].release == "1.5.0"
-        assert releases[1].release == "1.6.0"
+        assert releases[0].release == "rhoai-3.0"
+        assert releases[1].release == "rhoai-3.2"
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_extra_columns(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases handles lines with extra columns."""
         # Setup mock with extra columns
         extra_columns_data = """Release\tDetails\tPlanned Release Date
-1.5.0\tGA release with new features\t2025-02-15\tExtra\tColumn"""
+rhoai-3.0\t3.0 RHOAI GA\tThu Nov-13-2025\tExtra\tColumn"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = extra_columns_data
@@ -289,16 +295,16 @@ class TestGetReleasesEdgeCases:
 
         # Should parse successfully, ignoring extra columns
         assert len(releases) == 1
-        assert releases[0].release == "1.5.0"
-        assert releases[0].details == "GA release with new features"
-        assert releases[0].planned_release_date == "2025-02-15"
+        assert releases[0].release == "rhoai-3.0"
+        assert releases[0].details == "3.0 RHOAI GA"
+        assert releases[0].release_date == date(2025, 11, 13)
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_whitespace_in_data(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases preserves whitespace in field values."""
         # Setup mock with whitespace
         whitespace_data = """Release\tDetails\tPlanned Release Date
-1.5.0\t  GA release with new features  \t2025-02-15"""
+rhoai-3.0\t  3.0 RHOAI GA  \tThu Nov-13-2025"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = whitespace_data
@@ -309,14 +315,14 @@ class TestGetReleasesEdgeCases:
 
         # Whitespace should be preserved (no trimming)
         assert len(releases) == 1
-        assert releases[0].details == "  GA release with new features  "
+        assert releases[0].details == "  3.0 RHOAI GA  "
 
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_empty_fields(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases handles empty field values."""
         # Setup mock with empty fields
         empty_fields_data = """Release\tDetails\tPlanned Release Date
-1.5.0\t\t2025-02-15"""
+rhoai-3.0\t\tThu Nov-13-2025"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = empty_fields_data
@@ -327,9 +333,9 @@ class TestGetReleasesEdgeCases:
 
         # Should parse successfully with empty details field
         assert len(releases) == 1
-        assert releases[0].release == "1.5.0"
+        assert releases[0].release == "rhoai-3.0"
         assert releases[0].details == ""
-        assert releases[0].planned_release_date == "2025-02-15"
+        assert releases[0].release_date == date(2025, 11, 13)
 
 
 class TestRHAIReleaseModel:
@@ -340,22 +346,26 @@ class TestRHAIReleaseModel:
         release = RHAIRelease(
             release="1.5.0",
             details="GA release with new features",
-            planned_release_date="2025-02-15",
+            release_date=date(2025, 2, 15),
         )
         assert release.release == "1.5.0"
         assert release.details == "GA release with new features"
-        assert release.planned_release_date == "2025-02-15"
+        assert release.release_date == date(2025, 2, 15)
 
     def test_rhai_release_requires_all_fields(self):
         """Test that RHAIRelease requires all fields."""
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            RHAIRelease(release="1.5.0", details="GA release")  # Missing planned_release_date
+            RHAIRelease(release="1.5.0", details="GA release")  # Missing release_date
 
-    def test_rhai_release_accepts_empty_strings(self):
-        """Test that RHAIRelease accepts empty strings for fields."""
-        release = RHAIRelease(release="", details="", planned_release_date="")
-        assert release.release == ""
-        assert release.details == ""
-        assert release.planned_release_date == ""
+    def test_rhai_release_accepts_date_objects(self):
+        """Test that RHAIRelease accepts date objects for release_date field."""
+        release = RHAIRelease(
+            release="rhoai-3.0",
+            details="3.0 RHOAI GA",
+            release_date=date(2025, 11, 13),
+        )
+        assert release.release == "rhoai-3.0"
+        assert release.details == "3.0 RHOAI GA"
+        assert release.release_date == date(2025, 11, 13)

@@ -449,3 +449,99 @@ def dev_clean(session):
     print("\n🧹 Cleaning up containers and volumes...")
     session.run(*compose, "down", "-v", external=True)
     print("✅ Cleanup complete")
+
+
+# =============================================================================
+# Example Applications
+# =============================================================================
+
+
+@nox.session(venv_backend="none")
+def example_rhai_releases(session):
+    """Run the RHAI releases example to fetch and display release information.
+
+    This example demonstrates how to use RHAITools to fetch RHAI release data
+    from Google Sheets and display it in a formatted table.
+
+    Requirements:
+        - AGENTLLM_RHAI_ROADMAP_PUBLISHER_RELEASE_SHEET environment variable
+        - AGENTLLM_DATA_DIR environment variable (default: tmp/)
+        - User must have Google Drive credentials in token database
+
+    Usage:
+        nox -s example_rhai_releases -- <user_id>
+
+    The user_id must have authorized Google Drive through the agent first.
+    You can check available users by looking at the token database.
+
+    Examples:
+        nox -s example_rhai_releases -- demo-user
+        nox -s example_rhai_releases -- user@example.com
+    """
+    import os
+    import sys
+    from pathlib import Path
+
+    print("\n" + "=" * 80)
+    print("🎯 RHAI RELEASES EXAMPLE")
+    print("=" * 80 + "\n")
+
+    # Check for user_id argument
+    if not session.posargs:
+        print("❌ Error: user_id argument is required\n")
+        print("Usage:")
+        print("  nox -s example_rhai_releases -- <user_id>\n")
+        print("Examples:")
+        print("  nox -s example_rhai_releases -- demo-user")
+        print("  nox -s example_rhai_releases -- user@example.com\n")
+        print("Note: The user must have authorized Google Drive through the agent first.")
+        print("      Check available users in the token database at tmp/agno_sessions.db\n")
+        sys.exit(1)
+
+    user_id = session.posargs[0]
+
+    # Check required environment variables
+    required_vars = {
+        "AGENTLLM_RHAI_ROADMAP_PUBLISHER_RELEASE_SHEET": "RHAI Release Sheet URL",
+    }
+
+    missing_vars = []
+    for var, description in required_vars.items():
+        if not os.getenv(var):
+            missing_vars.append(f"   ❌ {var}: {description}")
+
+    if missing_vars:
+        print("Missing required environment variables:\n")
+        print("\n".join(missing_vars))
+        print("\n💡 Set these variables in your .env or .envrc file")
+        print("   See CLAUDE.md for setup instructions\n")
+        sys.exit(1)
+
+    print("✅ All required environment variables are set")
+    print(f"👤 User ID: {user_id}\n")
+
+    # Check if token database exists
+    data_dir = os.getenv("AGENTLLM_DATA_DIR", "tmp/")
+    token_db_path = Path(data_dir) / "agno_sessions.db"
+
+    if not token_db_path.exists():
+        print(f"❌ Token database not found: {token_db_path}\n")
+        print("   You need to authorize Google Drive through the agent first.")
+        print("   Start the agent and interact with it to trigger authorization:\n")
+        print("   1. nox -s proxy")
+        print("   2. Use Open WebUI to interact with agno/release-manager\n")
+        sys.exit(1)
+
+    print(f"💾 Token database found: {token_db_path}")
+    print("🚀 Starting example...\n")
+    print("=" * 80 + "\n")
+
+    # Run the example script with user_id
+    session.run(
+        "uv",
+        "run",
+        "python",
+        "examples/rhai_releases_example.py",
+        user_id,
+        external=True,
+    )

@@ -139,7 +139,7 @@ OPENAI_API_BASE_URL=http://litellm-proxy:8890/v1
 make lint
 
 # Format code
-nox -s format
+make format
 ```
 
 ### Making Test Requests
