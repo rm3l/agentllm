@@ -40,6 +40,50 @@ def integration(session):
 
 
 @nox.session(venv_backend="none")
+def eval_accuracy(session):
+    """Run accuracy evaluations for RHAI Roadmap Publisher.
+
+    Requires ANTHROPIC_API_KEY environment variable.
+
+    Examples:
+        nox -s eval_accuracy                     # All evaluations
+        nox -s eval_accuracy -- -k completeness  # Only completeness tests
+        nox -s eval_accuracy -- -v -s            # Verbose with output
+    """
+    import os
+    import sys
+
+    # Check for ANTHROPIC_API_KEY
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("❌ Error: ANTHROPIC_API_KEY environment variable not set")
+        print("\n💡 Set your Anthropic API key:")
+        print("   export ANTHROPIC_API_KEY=sk-ant-...")
+        print("   Or add to .env file")
+        print("\nGet your key from: https://console.anthropic.com/settings/keys")
+        sys.exit(1)
+
+    print("✅ ANTHROPIC_API_KEY configured")
+    print("🧪 Running accuracy evaluations...\n")
+
+    args = [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_rhai_roadmap_accuracy.py",
+        "-v",
+        "--tb=short",
+        "-m",
+        "integration",
+    ]
+
+    # Pass through additional pytest arguments
+    if session.posargs:
+        args.extend(session.posargs)
+
+    session.run(*args, external=True)
+
+
+@nox.session(venv_backend="none")
 def proxy(session):
     """Start LiteLLM proxy with Agno provider on port 8890."""
     session.run(

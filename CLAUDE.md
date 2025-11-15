@@ -23,6 +23,9 @@ nox -s test
 # Run integration tests (requires running proxy)
 nox -s integration
 
+# Run accuracy evaluations (requires ANTHROPIC_API_KEY)
+nox -s eval_accuracy
+
 # Run specific test
 uv run pytest tests/test_custom_handler.py::TestAgnoCustomLLM -v
 
@@ -824,6 +827,81 @@ Project follows Test-Driven Development (TDD):
 2. Implement feature
 3. Run tests: `nox -s test`
 4. Refactor as needed
+
+## Accuracy Evaluations
+
+### Overview
+
+The project includes accuracy evaluation infrastructure for measuring agent performance using Agno's `AccuracyEval` framework with Anthropic Claude Haiku as the LLM-as-judge evaluator.
+
+**Current Coverage:**
+- **RHAI Roadmap Publisher**: Comprehensive evaluations for roadmap generation quality
+
+**Evaluation Aspects:**
+- **Completeness**: All matching JIRA issues included in the roadmap (0-100%)
+- **Accuracy**: Issues placed in correct timeline sections (0-100%)
+- **Structure**: Proper markdown formatting (0-100%)
+- **Content**: Correct issue metadata and descriptions (0-100%)
+
+### Running Evaluations
+
+```bash
+# Run all accuracy evaluations (requires ANTHROPIC_API_KEY)
+nox -s eval_accuracy
+
+# Run specific aspect
+nox -s eval_accuracy -- -k completeness
+
+# Run with verbose output
+nox -s eval_accuracy -- -v -s
+```
+
+**Prerequisites:**
+- `ANTHROPIC_API_KEY` environment variable must be set
+- Get your key from: https://console.anthropic.com/settings/keys
+- Cost: ~$0.001 per evaluation (Claude Haiku 3.5)
+
+### Evaluation Infrastructure
+
+**Files:**
+- `tests/test_rhai_roadmap_accuracy.py` - Evaluation tests
+- `tests/fixtures/rhai_jira_synthetic_data.py` - Synthetic test data
+- `scripts/generate_synthetic_jira_data.py` - Data anonymization script
+- `docs/rhai_roadmap_evaluation_guide.md` - Comprehensive guide
+
+**Synthetic Data:**
+- Pre-generated anonymized JIRA data for reproducible tests
+- Scenarios: basic (7 issues), no-dates (3 issues), empty result set
+- Dynamic quarter date calculation for temporal accuracy
+
+**Evaluator Agents:**
+- Separate evaluator agent per aspect (completeness, accuracy, structure, content)
+- Claude Haiku with temperature=0 for deterministic scoring
+- Custom scoring rubrics per aspect
+
+### Adding New Evaluation Scenarios
+
+See `docs/rhai_roadmap_evaluation_guide.md` for detailed instructions on:
+- Generating new synthetic data from real JIRA
+- Creating new test scenarios
+- Extending evaluations to other agents
+
+### Evaluation Success Criteria
+
+Tests pass when score ≥ 95% for all aspects:
+- **95-100%**: Excellent - production quality
+- **90-94%**: Good - minor issues
+- **Below 90%**: Needs improvement
+
+### Extending to Other Agents
+
+The evaluation framework is reusable for other agents:
+1. Create synthetic data fixtures for agent's domain
+2. Define evaluation aspects relevant to agent
+3. Create evaluator agents with scoring rubrics
+4. Write test scenarios using existing patterns
+
+See `tests/test_rhai_roadmap_accuracy.py` for reference implementation.
 
 ## Package Manager
 

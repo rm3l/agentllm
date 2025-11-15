@@ -67,16 +67,12 @@ class RHAITools(Toolkit):
         # Get document URL from environment
         doc_url = os.getenv("AGENTLLM_RHAI_ROADMAP_PUBLISHER_RELEASE_SHEET")
         if not doc_url:
-            raise ValueError(
-                "Environment variable AGENTLLM_RHAI_ROADMAP_PUBLISHER_RELEASE_SHEET must be set"
-            )
+            raise ValueError("Environment variable AGENTLLM_RHAI_ROADMAP_PUBLISHER_RELEASE_SHEET must be set")
 
         try:
             # Fetch document content
             logger.info(f"Fetching RHAI releases from: {doc_url}")
-            content = self.exporter.get_document_content_as_string(
-                doc_url, format_key=None
-            )
+            content = self.exporter.get_document_content_as_string(doc_url, format_key=None)
             logger.debug(f"Document content fetched:\n{content}")
 
             if content is None:
@@ -93,9 +89,7 @@ class RHAITools(Toolkit):
 
                 # Skip lines with insufficient columns
                 if len(parts) < 3:
-                    logger.warning(
-                        f"Skipping line {i}: insufficient columns (expected 3, got {len(parts)})"
-                    )
+                    logger.warning(f"Skipping line {i}: insufficient columns (expected 3, got {len(parts)})")
                     continue
 
                 # Extract fields (take first 3 columns, ignore extras)
@@ -123,9 +117,7 @@ class RHAITools(Toolkit):
                             continue
 
                     if parsed is None:
-                        logger.warning(
-                            f"Skipping line {i}: cannot parse release_date '{release_date_str}'"
-                        )
+                        logger.warning(f"Skipping line {i}: cannot parse release_date '{release_date_str}'")
                         continue
 
                     release_date_obj = parsed
@@ -143,9 +135,7 @@ class RHAITools(Toolkit):
 
         except CantGetReleasesError as e:
             # Re-raise as CantParseReleasesError for consistency with tests
-            raise CantParseReleasesError(
-                "Failed to retrieve releases from document"
-            ) from e
+            raise CantParseReleasesError("Failed to retrieve releases from document") from e
         except Exception as e:
             logger.error(f"Error fetching/parsing releases: {e}")
             raise CantParseReleasesError(f"Failed to parse releases: {e}") from e

@@ -148,17 +148,21 @@ You will:
 You must organize issues into three temporal sections:
 
 ### 1. Current Quarter
+- Include the release that falls within the current quarter
 - Include all issues with end dates falling within the current quarter
-- These are issues actively in progress or near completion
 - Do not include issues without end/target dates or with status "New"
+- if the target version does not fall within the current quarter, move it to a different temporal section
 - Provide the most detail for these items
+- These are issues actively in progress or near completion
 
 ### 2. Next Quarter
+- Include the release that falls within the next quarter
 - Include issues with end dates in the immediately following quarter
 - These are issues in planning or early implementation
 - Moderate level of detail
 
 ### 3. Next Half-Year after the Next Quarter
+- Include the release(s) that fall within the half-year period after the next quarter
 - Include issues with end dates in the subsequent two quarters
 - Include issues with status "New" if they match the label/component criteria
 - If end dates are missing or unclear, place the issues here
@@ -181,11 +185,17 @@ Your roadmap output must be a **Markdown document** with this structure:
 ```markdown
 # Red Hat AI Roadmap - [Feature Area/Label]
 
+## Releases
+
+For the upcoming periods, the target versions are scheduled as follows:
+- **Current Quarter**: [List target versions for current quarter issues]
+- **Next Quarter**: [List target versions for next quarter issues]
+- **Next Half-Year**: [List target versions for half-year issues]
+
 ## Current Quarter: [Quarter Year] (e.g., 3Q 2025)
 
 ### [JIRA-KEY]: [Feature Title]
 - **Status**: [Current Status]
-- **Target Date**: [End Date]
 - **Target Version**: [Target Version if available]
 - **Description**: [Brief description of the feature]
 - **Link**: https://issues.redhat.com/browse/[JIRA-KEY]
@@ -195,7 +205,6 @@ Your roadmap output must be a **Markdown document** with this structure:
 ## Next Quarter: [Quarter Year] (e.g., 4Q 2025)
 
 ### [JIRA-KEY]: [Feature Title]
-- **Target Date**: [End Date]
 - **Target Version**: [Target Version if available]
 - **Description**: [Brief description]
 - **Link**: https://issues.redhat.com/browse/[JIRA-KEY]
@@ -205,19 +214,11 @@ Your roadmap output must be a **Markdown document** with this structure:
 ## Next Half-Year: [Period] (e.g., 1H 2026)
 
 ### [JIRA-KEY]: [Feature Title]
-- **Target Date**: [End Date or Quarter]
 - **Target Version**: [Target Version if available]
 - **Strategic Focus**: [High-level description]
 - **Link**: https://issues.redhat.com/browse/[JIRA-KEY]
 
 [Repeat for each half-year item]
-
-## Releases
-
-For the upcoming periods, the target versions are scheduled as follows:
-- **Current Quarter**: [List target versions for current quarter issues]
-- **Next Quarter**: [List target versions for next quarter issues]
-- **Next Half-Year**: [List target versions for half-year issues]
 
 ```
 

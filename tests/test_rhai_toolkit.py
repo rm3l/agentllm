@@ -132,14 +132,14 @@ class TestGetReleasesSuccess:
         toolkit = RHAITools(credentials=mock_credentials)
         releases = toolkit.get_releases()
 
-        # Check first release (from fixtures/releases.csv)
+        # Check first release (from fixtures/releases.csv) - updated to match actual fixture
         assert releases[0].release == "RHAIIS-3.2.4"
-        assert releases[0].details == "RHAIIS 3.2.4 Release (AIPCC)"
+        assert releases[0].details == "RHAIIS 3.2.4 Release"
         assert releases[0].release_date == date(2025, 11, 13)
 
         # Check second release
         assert releases[1].release == "rhelai-3.0"
-        assert releases[1].details == "rhelai-3.0 GA (Nvidia support only)"
+        assert releases[1].details == "rhelai-3.0 GA"
         assert releases[1].release_date == date(2025, 11, 13)
 
         # Check third release
@@ -249,7 +249,7 @@ class TestGetReleasesEdgeCases:
         """Test that get_releases handles an empty document (only header)."""
         # Setup mock with only header (matching the actual CSV header)
         mock_exporter = MagicMock()
-        mock_exporter.get_document_content_as_string.return_value = "Release\tDetails\tPlanned Release Date"
+        mock_exporter.get_document_content_as_string.return_value = "Release,Details,Planned Release Date"
         mock_exporter_class.return_value = mock_exporter
 
         toolkit = RHAITools(credentials=mock_credentials)
@@ -261,11 +261,11 @@ class TestGetReleasesEdgeCases:
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_skips_malformed_lines(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases skips lines with insufficient columns."""
-        # Setup mock with some malformed lines
-        malformed_data = """Release\tDetails\tPlanned Release Date
-rhoai-3.0\t3.0 RHOAI GA\tThu Nov-13-2025
-rhoai-3.1\tIncomplete line
-rhoai-3.2\t3.2 RHOAI not-a-real-date\tThu Jan-01-2026"""
+        # Setup mock with some malformed lines (CSV format)
+        malformed_data = """Release,Details,Planned Release Date
+rhoai-3.0,3.0 RHOAI GA,Thu Nov-13-2025
+rhoai-3.1,Incomplete line
+rhoai-3.2,3.2 RHOAI not-a-real-date,Thu Jan-01-2026"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = malformed_data
@@ -282,9 +282,9 @@ rhoai-3.2\t3.2 RHOAI not-a-real-date\tThu Jan-01-2026"""
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_extra_columns(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases handles lines with extra columns."""
-        # Setup mock with extra columns
-        extra_columns_data = """Release\tDetails\tPlanned Release Date
-rhoai-3.0\t3.0 RHOAI GA\tThu Nov-13-2025\tExtra\tColumn"""
+        # Setup mock with extra columns (CSV format)
+        extra_columns_data = """Release,Details,Planned Release Date
+rhoai-3.0,3.0 RHOAI GA,Thu Nov-13-2025,Extra,Column"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = extra_columns_data
@@ -302,9 +302,9 @@ rhoai-3.0\t3.0 RHOAI GA\tThu Nov-13-2025\tExtra\tColumn"""
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_whitespace_in_data(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases preserves whitespace in field values."""
-        # Setup mock with whitespace
-        whitespace_data = """Release\tDetails\tPlanned Release Date
-rhoai-3.0\t  3.0 RHOAI GA  \tThu Nov-13-2025"""
+        # Setup mock with whitespace (CSV format)
+        whitespace_data = """Release,Details,Planned Release Date
+rhoai-3.0,  3.0 RHOAI GA  ,Thu Nov-13-2025"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = whitespace_data
@@ -320,9 +320,9 @@ rhoai-3.0\t  3.0 RHOAI GA  \tThu Nov-13-2025"""
     @patch("agentllm.tools.rhai_toolkit.GoogleDriveExporter")
     def test_get_releases_handles_empty_fields(self, mock_exporter_class, mock_credentials: Credentials, env_var_set):
         """Test that get_releases handles empty field values."""
-        # Setup mock with empty fields
-        empty_fields_data = """Release\tDetails\tPlanned Release Date
-rhoai-3.0\t\tThu Nov-13-2025"""
+        # Setup mock with empty fields (CSV format)
+        empty_fields_data = """Release,Details,Planned Release Date
+rhoai-3.0,,Thu Nov-13-2025"""
 
         mock_exporter = MagicMock()
         mock_exporter.get_document_content_as_string.return_value = empty_fields_data
