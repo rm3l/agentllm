@@ -290,6 +290,12 @@ class RHCPConfig(BaseToolkitConfig):
                 "  * JIRA stores case numbers in customfield_12313441 (use cf[12313441] in JQL queries)",
                 "  * Example: Find JIRA issues for case 04312027: 'project = RHDHSUPP AND cf[12313441] = 04312027'",
                 "  * Then use get_case(case_number) to fetch RHCP case details",
+                "- Apply severity-to-priority mapping when analyzing issues:",
+                "  * Severity '1 (Urgent)' → Priority 'Critical'",
+                "  * Severity '2 (High)' → Priority 'Major'",
+                "  * Severity '3 (Normal)' → Priority 'Normal'",
+                "  * Severity '4 (Low)' → Priority 'Minor'",
+                "  * is_escalated=true → Priority 'Blocker' (overrides severity mapping)",
                 "- Include case severity and escalation status in your recommendations",
             ]
         return []
