@@ -12,11 +12,15 @@ from urllib.parse import urlencode
 import requests
 from agno.tools import Toolkit
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RHCPCaseData(BaseModel):
-    """Pydantic model for RHCP case data."""
+    """Pydantic model for RHCP case data.
+
+    NOTE: Some fields from RHCP API come as lists instead of strings.
+    Validators handle conversion from list to string automatically.
+    """
 
     case_number: str = Field(..., description="Customer case number")
     severity: str | None = Field(None, description="Case severity level")
@@ -30,6 +34,28 @@ class RHCPCaseData(BaseModel):
     entitlement_active: bool | None = Field(None, description="Whether entitlement is active")
     created_date: str | None = Field(None, description="Case creation date")
     last_modified_date: str | None = Field(None, description="Last modification date")
+
+    @field_validator("product", "version", "summary", "description", mode="before")
+    @classmethod
+    def convert_list_to_string(cls, v):
+        """Convert list values to strings.
+
+        RHCP API sometimes returns fields as lists instead of strings.
+        This validator handles both cases.
+
+        Args:
+            v: Field value (can be str, list, or None)
+
+        Returns:
+            String value or None
+        """
+        if v is None:
+            return None
+        if isinstance(v, list):
+            # Join list items with comma, filter out None/empty
+            items = [str(item) for item in v if item]
+            return ", ".join(items) if items else None
+        return str(v) if v else None
 
 
 class RHCPTools(Toolkit):
@@ -177,24 +203,29 @@ class RHCPTools(Toolkit):
             case_raw = docs[0]
 
             # Parse into structured format
-            case_data = RHCPCaseData(
-                case_number=case_raw.get("case_caseNumber", str(case_number)),
-                severity=case_raw.get("case_severity"),
-                status=case_raw.get("case_status"),
-                summary=case_raw.get("case_summary"),
-                description=case_raw.get("case_description"),
-                product=case_raw.get("case_product"),
-                version=case_raw.get("case_version"),
-                is_escalated=case_raw.get("case_customer_escalation", False),
-                entitlement_service_level=case_raw.get("case_entitlement_service_level_label"),
-                entitlement_active=(
-                    case_raw.get("case_negotiated_entitlement_active", [False])[0]
-                    if case_raw.get("case_negotiated_entitlement_active")
-                    else None
-                ),
-                created_date=case_raw.get("case_createdDate"),
-                last_modified_date=case_raw.get("case_lastModifiedDate"),
-            )
+            try:
+                case_data = RHCPCaseData(
+                    case_number=case_raw.get("case_caseNumber", str(case_number)),
+                    severity=case_raw.get("case_severity"),
+                    status=case_raw.get("case_status"),
+                    summary=case_raw.get("case_summary"),
+                    description=case_raw.get("case_description"),
+                    product=case_raw.get("case_product"),
+                    version=case_raw.get("case_version"),
+                    is_escalated=case_raw.get("case_customer_escalation", False),
+                    entitlement_service_level=case_raw.get("case_entitlement_service_level_label"),
+                    entitlement_active=(
+                        case_raw.get("case_negotiated_entitlement_active", [False])[0]
+                        if case_raw.get("case_negotiated_entitlement_active")
+                        else None
+                    ),
+                    created_date=case_raw.get("case_createdDate"),
+                    last_modified_date=case_raw.get("case_lastModifiedDate"),
+                )
+            except Exception as e:
+                logger.error(f"Failed to parse case data for case {case_number}: {e}")
+                logger.debug(f"Raw case data: {case_raw}")
+                return f"Error parsing case data for {case_number}: {str(e)}"
 
             # Return formatted case data
             return case_data.model_dump_json(indent=2)
@@ -249,25 +280,32 @@ class RHCPTools(Toolkit):
             # Parse cases into structured format
             cases = []
             for case_raw in docs[:limit]:
-                case_data = RHCPCaseData(
-                    case_number=case_raw.get("case_caseNumber", "Unknown"),
-                    severity=case_raw.get("case_severity"),
-                    status=case_raw.get("case_status"),
-                    summary=case_raw.get("case_summary"),
-                    description=case_raw.get("case_description"),
-                    product=case_raw.get("case_product"),
-                    version=case_raw.get("case_version"),
-                    is_escalated=case_raw.get("case_customer_escalation", False),
-                    entitlement_service_level=case_raw.get("case_entitlement_service_level_label"),
-                    entitlement_active=(
-                        case_raw.get("case_negotiated_entitlement_active", [False])[0]
-                        if case_raw.get("case_negotiated_entitlement_active")
-                        else None
-                    ),
-                    created_date=case_raw.get("case_createdDate"),
-                    last_modified_date=case_raw.get("case_lastModifiedDate"),
-                )
-                cases.append(case_data.model_dump())
+                try:
+                    case_data = RHCPCaseData(
+                        case_number=case_raw.get("case_caseNumber", "Unknown"),
+                        severity=case_raw.get("case_severity"),
+                        status=case_raw.get("case_status"),
+                        summary=case_raw.get("case_summary"),
+                        description=case_raw.get("case_description"),
+                        product=case_raw.get("case_product"),
+                        version=case_raw.get("case_version"),
+                        is_escalated=case_raw.get("case_customer_escalation", False),
+                        entitlement_service_level=case_raw.get("case_entitlement_service_level_label"),
+                        entitlement_active=(
+                            case_raw.get("case_negotiated_entitlement_active", [False])[0]
+                            if case_raw.get("case_negotiated_entitlement_active")
+                            else None
+                        ),
+                        created_date=case_raw.get("case_createdDate"),
+                        last_modified_date=case_raw.get("case_lastModifiedDate"),
+                    )
+                    cases.append(case_data.model_dump())
+                except Exception as e:
+                    case_num = case_raw.get("case_caseNumber", "Unknown")
+                    logger.error(f"Failed to parse case data for case {case_num}: {e}")
+                    logger.debug(f"Raw case data: {case_raw}")
+                    # Continue processing other cases instead of failing completely
+                    continue
 
             # Return as JSON array
             import json

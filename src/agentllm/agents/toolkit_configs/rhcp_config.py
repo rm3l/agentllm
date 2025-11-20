@@ -129,10 +129,13 @@ class RHCPConfig(BaseToolkitConfig):
             # Return confirmation with validation message
             return (
                 f"{validation_message}\n\n"
-                f"You can now ask me to:\n"
-                f"- Get customer case information\n"
+                f"🎉 **RHCP Integration Active!**\n\n"
+                f"I now have access to Red Hat Customer Portal tools. You can ask me to:\n"
+                f"- Get customer case information by case number\n"
+                f"- Search for customer cases\n"
                 f"- Check case severity and escalation status\n"
-                f"- Verify customer entitlements"
+                f"- Verify customer entitlements and SLA information\n\n"
+                f"Note: I have READ-ONLY access - I cannot create or modify cases."
             )
 
         except Exception as e:
@@ -273,9 +276,21 @@ class RHCPConfig(BaseToolkitConfig):
         """
         if self.get_toolkit(user_id):
             return [
-                "You have access to Red Hat Customer Portal (RHCP) tools to get customer case information, "
-                "check case severity, escalation status, and verify entitlements. "
-                "Use these tools when users ask about customer cases or entitlements."
+                "Red Hat Customer Portal (RHCP) Integration:",
+                "- CRITICAL: You NOW HAVE access to RHCP tools - any previous statements about not having RHCP access are outdated",
+                "- IMPORTANT: Your current capabilities include READ-ONLY access to customer case information",
+                "- Available tools that you MUST use when asked about customer cases:",
+                "  - get_case(case_number): Get detailed information about a specific customer case",
+                "  - search_cases(query, limit): Search for customer cases using queries",
+                "- Case data you can retrieve: severity, status, escalation status, entitlement level, SLA information",
+                "- ALWAYS use RHCP tools when asked about customer cases or case numbers - do not claim you lack access",
+                "- Track linked customer cases and provide full context from RHCP",
+                "- CRITICAL: Do NOT create, update, or modify customer cases - READ-ONLY access only",
+                "- Cross-reference JIRA issues with RHCP customer cases:",
+                "  * JIRA stores case numbers in customfield_12313441 (use cf[12313441] in JQL queries)",
+                "  * Example: Find JIRA issues for case 04312027: 'project = RHDHSUPP AND cf[12313441] = 04312027'",
+                "  * Then use get_case(case_number) to fetch RHCP case details",
+                "- Include case severity and escalation status in your recommendations",
             ]
         return []
 
