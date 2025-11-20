@@ -5,7 +5,7 @@ from typing import Any
 from agno.db.sqlite import SqliteDb
 
 from agentllm.agents.base import AgentConfigurator, BaseToolkitConfig
-from agentllm.agents.toolkit_configs import GoogleDriveConfig, JiraConfig, RHCPConfig
+from agentllm.agents.toolkit_configs import GoogleDriveConfig, JiraConfig, RHCPConfig, WebConfig
 from agentllm.agents.toolkit_configs.system_prompt_extension_config import (
     SystemPromptExtensionConfig,
 )
@@ -83,12 +83,14 @@ class RHDHSupportConfigurator(AgentConfigurator):
             token_storage=self._token_storage,
         )
         rhcp_config = RHCPConfig(token_storage=self._token_storage)
+        web_config = WebConfig()  # Defaults to *.redhat.com
         system_prompt_config = SystemPromptExtensionConfig(gdrive_config=gdrive_config, token_storage=self._token_storage)
 
         return [
             gdrive_config,
             jira_config,
             rhcp_config,
+            web_config,  # No dependencies, always available
             system_prompt_config,  # Must come after gdrive_config due to dependency
         ]
 
@@ -152,8 +154,15 @@ class RHDHSupportConfigurator(AgentConfigurator):
             "  - Do NOT create, update, or comment on JIRA issues",
             "  - You can only read and query data, never modify it",
             "- Proactively identify unassigned issues and SLA risks",
-            "- When asked about version support, parse version from issue description and check lifecycle doc",
-            "- When asked about plugin support, reference the plugin support levels documentation",
+            "- When asked about version support:",
+            "  * Use fetch_url tool to retrieve the RHDH Lifecycle page:",
+            "    https://access.redhat.com/support/policy/updates/developerhub",
+            "  * Parse the version support information from the fetched content",
+            "  * Provide clear answer about whether the version is still supported",
+            "- When asked about plugin support:",
+            "  * Use fetch_url tool to access plugin support levels documentation:",
+            "    https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.8/html-single/dynamic_plugins_reference/",
+            "  * Extract relevant support level information",
             "- Base recommendations on concrete data from available tools",
             "- Maintain professional communication appropriate for Support and Engineering stakeholders",
             "",

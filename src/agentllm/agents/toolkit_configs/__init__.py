@@ -7,6 +7,7 @@ from .github_config import GitHubConfig
 from .jira_config import JiraConfig
 from .rhcp_config import RHCPConfig
 from .rhai_toolkit_config import RHAIToolkitConfig
+from .web_config import WebConfig
 
 __all__ = [
     "BaseToolkitConfig",
@@ -16,4 +17,5 @@ __all__ = [
     "JiraConfig",
     "RHCPConfig",
     "RHAIToolkitConfig",
+    "WebConfig",
 ]

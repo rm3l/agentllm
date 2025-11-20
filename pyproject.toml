@@ -12,6 +12,7 @@ dependencies = [
   "anthropic>=0.72.1",
   "rich>=13.7.1",
   "requests>=2.32.0",
+  "beautifulsoup4>=4.12.0",
 ]
 description = "Custom LiteLLM provider for Agno agents - OpenAI-compatible API for Agno"
 name = "agentllm"
