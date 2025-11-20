@@ -43,24 +43,24 @@ class SystemPromptExtensionConfig(BaseToolkitConfig):
         Args:
             gdrive_config: GoogleDriveConfig instance to use for fetching documents
             document_url: Google Drive document URL to fetch system prompt from.
-                         If None, will check env_var_name or fall back to
-                         RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL for backward compatibility.
-            env_var_name: Optional environment variable name to read document URL from.
-                         Used if document_url is None. Defaults to
-                         RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL for backward compatibility.
+                         If None, will check env_var_name environment variable.
+            env_var_name: Environment variable name to read document URL from.
+                         Required if document_url is None.
             token_storage: Optional shared token storage (for consistency with base class)
         """
         super().__init__(token_storage)
         self._gdrive_config = gdrive_config
 
-        # Determine document URL from: parameter > custom env var > default env var
+        # Determine document URL from: parameter > env var
         if document_url:
             self._doc_url = document_url
             self._source = "constructor parameter"
+        elif env_var_name:
+            self._doc_url = os.getenv(env_var_name)
+            self._source = f"environment variable {env_var_name}"
         else:
-            env_name = env_var_name or "RELEASE_MANAGER_SYSTEM_PROMPT_GDRIVE_URL"
-            self._doc_url = os.getenv(env_name)
-            self._source = f"environment variable {env_name}"
+            self._doc_url = None
+            self._source = "not configured (no document_url or env_var_name provided)"
 
         # Per-user cache of fetched system prompts
         self._system_prompts: dict[str, str] = {}
@@ -68,7 +68,7 @@ class SystemPromptExtensionConfig(BaseToolkitConfig):
         if self._doc_url:
             logger.info(f"System prompt extension configured with document: {self._doc_url} (from {self._source})")
         else:
-            logger.debug(f"System prompt extension not configured (no document URL from {self._source})")
+            logger.debug(f"System prompt extension not configured ({self._source})")
 
     def is_configured(self, user_id: str) -> bool:
         """Check if system prompt extension is fully configured for a user.

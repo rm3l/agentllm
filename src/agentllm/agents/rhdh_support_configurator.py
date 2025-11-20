@@ -6,6 +6,9 @@ from agno.db.sqlite import SqliteDb
 
 from agentllm.agents.base import AgentConfigurator, BaseToolkitConfig
 from agentllm.agents.toolkit_configs import GoogleDriveConfig, JiraConfig, RHCPConfig, WebConfig
+from agentllm.agents.toolkit_configs.system_prompt_extension_config import (
+    SystemPromptExtensionConfig,
+)
 
 
 class RHDHSupportConfigurator(AgentConfigurator):
@@ -73,6 +76,7 @@ class RHDHSupportConfigurator(AgentConfigurator):
         Returns:
             list[BaseToolkitConfig]: List of toolkit configs
         """
+        # ORDER MATTERS: SystemPromptExtensionConfig depends on GoogleDriveConfig
         gdrive_config = GoogleDriveConfig(token_storage=self._token_storage)
         jira_config = JiraConfig(
             jira_server="https://issues.redhat.com",
@@ -80,12 +84,18 @@ class RHDHSupportConfigurator(AgentConfigurator):
         )
         rhcp_config = RHCPConfig(token_storage=self._token_storage)
         web_config = WebConfig()  # Defaults to *.redhat.com
+        system_prompt_config = SystemPromptExtensionConfig(
+            gdrive_config=gdrive_config,
+            env_var_name="SUPPORT_AGENT_SYSTEM_PROMPT_GDRIVE_URL",
+            token_storage=self._token_storage,
+        )
 
         return [
             gdrive_config,
             jira_config,
             rhcp_config,
             web_config,  # No dependencies, always available
+            system_prompt_config,  # Must come after gdrive_config due to dependency
         ]
 
     def _build_agent_instructions(self) -> list[str]:
