@@ -40,6 +40,12 @@ model_list:
       custom_llm_provider: agno
     model_info:
       description: "Sprint review assistant for creating team sprint reviews with metrics and issue details"
+  - model_name: agno/rhdh-support
+    litellm_params:
+      model: agno/rhdh-support
+      custom_llm_provider: agno
+    model_info:
+      description: "RHDH Support Focal - Monitoring support issues, customer cases, and team assignments"
       mode: chat
 
   # Google Gemini 2.5 models
